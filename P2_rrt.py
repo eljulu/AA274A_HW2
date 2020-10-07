@@ -104,7 +104,34 @@ class RRT(object):
         #     are meaningful! keep this in mind when using the helper functions!
 
         ########## Code starts here ##########
-        
+        for k in range(max_iters):
+            if success:
+                # print("constructing path...")
+                self.path = [self.x_goal]
+                current = self.path[-1]
+                while (current != self.x_init).all():
+                    currentIter = np.argmin(np.linalg.norm(V[range(n), :] - current, axis=1))
+                    parentIter = P[currentIter]
+                    self.path.append(V[parentIter, :])
+                    current = self.path[-1]
+                self.path = list(reversed(self.path))
+                break
+            z = np.random.uniform()
+            if z < goal_bias:
+                x_rand = self.x_goal
+            else:
+                x_rand = np.zeros((state_dim,))
+                for i in range(state_dim):
+                    x_rand[i] = np.random.uniform(self.statespace_lo[i], self.statespace_hi[i])
+            x_near = V[self.find_nearest(V[range(n),:], x_rand),:]
+            x_new = self.steer_towards(x_near, x_rand, eps)
+            if self.is_free_motion(self.obstacles, x_near, x_new):
+                n = n + 1
+                V[n-1,:] = x_new
+                P[n-1] = np.argmin(np.linalg.norm(V[range(n),:]-x_near, axis=1))
+                if (x_new == self.x_goal).all():
+                    success = True
+                    # print("Found solution")
         ########## Code ends here ##########
 
         plt.figure()
@@ -142,7 +169,14 @@ class RRT(object):
             None, but should modify self.path
         """
         ########## Code starts here ##########
-        
+        success = False
+        while not success:
+            success = True
+            for iter, x in enumerate(self.path):
+                if iter != 0 and iter != len(self.path)-1:
+                    if self.is_free_motion(self.obstacles, self.path[iter-1], self.path[iter+1]):
+                        del self.path[iter]
+                        success = False
         ########## Code ends here ##########
 
 class GeometricRRT(RRT):
@@ -154,13 +188,14 @@ class GeometricRRT(RRT):
     def find_nearest(self, V, x):
         ########## Code starts here ##########
         # Hint: This should take one line.
-        
+        return np.argmin(np.linalg.norm(V-x, axis=1))
+        # return np.array(V[np.argmin(np.linalg.norm(V-x, axis=1)),:])
         ########## Code ends here ##########
 
     def steer_towards(self, x1, x2, eps):
         ########## Code starts here ##########
         # Hint: This should take one line.
-        
+        return np.array(x1 + (x2-x1) / np.linalg.norm(x2-x1) * min(eps, np.linalg.norm(x2-x1)))
         ########## Code ends here ##########
 
     def is_free_motion(self, obstacles, x1, x2):
@@ -196,10 +231,14 @@ class DubinsRRT(RRT):
     def find_nearest(self, V, x):
         from dubins import path_length
         ########## Code starts here ##########
-        
+        dist = np.zeros((np.shape(V)[0],))
+        for i in range(len(V)):
+            dist[i] = path_length(V[i,:], x, self.turning_radius)
+        return np.argmin(dist)
         ########## Code ends here ##########
 
     def steer_towards(self, x1, x2, eps):
+        from dubins import path_sample, path_length
         ########## Code starts here ##########
         """
         A subtle issue: if you use dubins.path_sample to return the point
@@ -210,7 +249,11 @@ class DubinsRRT(RRT):
         distance eps (using self.turning_radius) due to numerical precision
         issues.
         """
-        
+        dist = path_length(x1, x2, self.turning_radius)
+        if dist < eps:
+            return x2
+        else:
+            return path_sample(x1, x2, 1.001*self.turning_radius, eps)[0][1]
         ########## Code ends here ##########
 
     def is_free_motion(self, obstacles, x1, x2, resolution = np.pi/6):

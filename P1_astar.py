@@ -21,9 +21,9 @@ class AStar(object):
         self.cost_to_arrive = {}    # dictionary of the cost-to-arrive at state from start (often called g score)
         self.came_from = {}         # dictionary keeping track of each state's parent to reconstruct the path
 
-        self.open_set.add(x_init)
-        self.cost_to_arrive[x_init] = 0
-        self.est_cost_through[x_init] = self.distance(x_init,x_goal)
+        self.open_set.add(self.x_init)
+        self.cost_to_arrive[self.x_init] = 0
+        self.est_cost_through[self.x_init] = self.distance(self.x_init,self.x_goal)
 
         self.path = None        # the final path as a list of states
 
@@ -37,7 +37,21 @@ class AStar(object):
             Boolean True/False
         """
         ########## Code starts here ##########
-        
+        # within map
+        for dim in range(len(x)):
+            if x[dim] < self.statespace_lo[dim] or x[dim] > self.statespace_hi[dim]:
+                return False # out of map, return false
+
+        # obstacles
+        for obs in self.occupancy.obstacles:
+            inside = True
+            for dim in range(len(x)):
+                if x[dim] < obs[0][dim] or x[dim] > obs[1][dim]:
+                    inside = False
+                    break
+            if inside:
+                return False
+        return True
         ########## Code ends here ##########
 
     def distance(self, x1, x2):
@@ -52,7 +66,7 @@ class AStar(object):
         HINT: This should take one line.
         """
         ########## Code starts here ##########
-        
+        return np.sqrt((x1[0]-x2[0]) ** 2 + (x1[1] - x2[1]) ** 2)
         ########## Code ends here ##########
 
     def snap_to_grid(self, x):
@@ -85,7 +99,13 @@ class AStar(object):
         """
         neighbors = []
         ########## Code starts here ##########
-        
+        moves = [(self.resolution, 0 ), (-self.resolution, 0), (0, self.resolution), (0, -self.resolution),
+                 (np.sqrt(2)/2 * self.resolution, np.sqrt(2)/2 * self.resolution), (-np.sqrt(2)/2 * self.resolution,np.sqrt(2)/2 * self.resolution),
+                 (np.sqrt(2)/2 * self.resolution, -np.sqrt(2)/2 * self.resolution), (-np.sqrt(2)/2 * self.resolution,-np.sqrt(2)/2 * self.resolution)]
+        for move in moves:
+            potential_neighbor = self.snap_to_grid((x[0]+move[0], x[1]+move[1]))
+            if self.is_free(potential_neighbor):
+                neighbors.append(self.snap_to_grid(potential_neighbor))
         ########## Code ends here ##########
         return neighbors
 
@@ -149,7 +169,25 @@ class AStar(object):
                 set membership efficiently using the syntax "if item in set".
         """
         ########## Code starts here ##########
-        
+        while len(self.open_set) > 0:
+            x_curr = self.find_best_est_cost_through()
+            if x_curr == self.x_goal:
+                self.path = self.reconstruct_path()
+                return True
+            self.open_set.remove(x_curr)
+            self.closed_set.add(x_curr)
+            for x_neigh in self.get_neighbors(x_curr):
+                if x_neigh in self.closed_set:
+                    continue
+                tentative_cost_to_arrive = self.cost_to_arrive[x_curr] + self.distance(x_curr, x_neigh)
+                if not (x_neigh in self.open_set):
+                    self.open_set.add(x_neigh)
+                elif tentative_cost_to_arrive > self.cost_to_arrive[x_neigh]:
+                    continue
+                self.came_from[x_neigh] = x_curr
+                self.cost_to_arrive[x_neigh] = tentative_cost_to_arrive
+                self.est_cost_through[x_neigh] = tentative_cost_to_arrive + self.distance(x_neigh, self.x_goal)
+        return False
         ########## Code ends here ##########
 
 class DetOccupancyGrid2D(object):
