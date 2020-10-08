@@ -132,7 +132,65 @@ class RRTConnect(object):
         # Hint: Use your implementation of RRT as a reference
 
         ########## Code starts here ##########
-        
+
+        def reconstruct_path(self):
+            print("here is the reconstruct path function...")
+
+
+        for k in range(max_iters):
+            if success:
+                print("Solution found, constructing path...")
+                break
+
+            x_rand = np.zeros((state_dim,))
+            for i in range(state_dim):
+                x_rand[i] = np.random.uniform(self.statespace_lo[i], self.statespace_hi[i])
+            x_near = V_fw[self.find_nearest_forward(V_fw[range(n_fw), :], x_rand), :]
+            x_new = self.steer_towards_forward(x_near, x_rand, eps)
+            if self.is_free_motion(self.obstacles, x_near, x_new):
+                n_fw = n_fw + 1
+                V_fw[n_fw - 1,:] = x_new
+                P_fw[n_fw - 1] = np.argmin(np.linalg.norm(V_fw[range(n_fw), :] - x_near, axis=1))
+                x_connect = V_bw[self.find_nearest_backward(V_bw[range(n_bw), :], x_new), :]
+                while True:
+                    x_newconnect = self.steer_towards_backward(x_new, x_connect, eps)
+                    if self.is_free_motion(self.obstacles,x_newconnect,x_connect):
+                        n_bw = n_bw + 1
+                        V_bw[n_bw-1,:] = x_newconnect
+                        P_bw[n_bw-1] = np.argmin(np.linalg.norm(V_bw[range(n_bw), :] - x_connect, axis=1))
+                        if (x_new == x_newconnect).all():
+                            success = True
+                            print("Solution found, constructing path...")
+                            reconstruct_path(self)
+                            return 0
+                        x_connect = x_newconnect
+                    else:
+                        break
+            x_rand = np.zeros((state_dim,))
+            for i in range(state_dim):
+                x_rand[i] = np.random.uniform(self.statespace_lo[i], self.statespace_hi[i])
+            x_near = V_bw[self.find_nearest_backward(V_bw[range(n_bw), :], x_rand), :]
+            x_new = self.steer_towards_backward(x_rand, x_near, eps)
+            if self.is_free_motion(self.obstacles, x_new, x_near):
+                n_bw = n_bw + 1
+                V_bw[n_bw - 1, :] = x_new
+                P_bw[n_bw - 1] = np.argmin(np.linalg.norm(V_bw[range(n_bw), :] - x_near, axis=1))
+                x_connect = V_fw[self.find_nearest_forward(V_fw[range(n_fw), :], x_new), :]
+                while True:
+                    x_newconnect = self.steer_towards_forward(x_connect, x_new, eps)
+                    if self.is_free_motion(self.obstacles, x_connect, x_newconnect):
+                        n_fw = n_fw + 1
+                        V_fw[n_fw - 1, :] = x_newconnect
+                        P_fw[n_fw - 1] = np.argmin(np.linalg.norm(V_fw[range(n_fw), :] - x_connect, axis=1))
+                        if (x_new == x_newconnect).all():
+                            success = True
+                            print("Solution found, constructing path...")
+                            reconstruct_path(self)
+                            return 0
+                        x_connect = x_newconnect
+                    else:
+                        break
+
 
         ########## Code ends here ##########
 
@@ -166,7 +224,7 @@ class GeometricRRTConnect(RRTConnect):
     def find_nearest_forward(self, V, x):
         ########## Code starts here ##########
         # Hint: This should take one line.
-        
+        return np.argmin(np.linalg.norm(V - x, axis=1))
         ########## Code ends here ##########
 
     def find_nearest_backward(self, V, x):
@@ -175,7 +233,7 @@ class GeometricRRTConnect(RRTConnect):
     def steer_towards_forward(self, x1, x2, eps):
         ########## Code starts here ##########
         # Hint: This should take one line.
-        
+        return np.array(x1 + (x2 - x1) / np.linalg.norm(x2 - x1) * min(eps, np.linalg.norm(x2 - x1)))
         ########## Code ends here ##########
 
     def steer_towards_backward(self, x1, x2, eps):
@@ -229,22 +287,36 @@ class DubinsRRTConnect(RRTConnect):
 
     def find_nearest_forward(self, V, x):
         ########## Code starts here ##########
-        
+        dist = np.zeros((np.shape(V)[0],))
+        for i in range(len(V)):
+            dist[i] = path_length(V[i,:], x, self.turning_radius)
+        return np.argmin(dist)
         ########## Code ends here ##########
 
     def find_nearest_backward(self, V, x):
         ########## Code starts here ##########
-        
+        dist = np.zeros((np.shape(V)[0],))
+        for i in range(len(V)):
+            dist[i] = path_length(x, V[i,:], self.turning_radius)
+        return np.argmin(dist)
         ########## Code ends here ##########
 
     def steer_towards_forward(self, x1, x2, eps):
         ########## Code starts here ##########
-        
+        dist = path_length(x1, x2, self.turning_radius)
+        if dist < eps:
+            return x2
+        else:
+            return path_sample(x1, x2, 1.001*self.turning_radius, eps)[0][1]
         ########## Code ends here ##########
 
     def steer_towards_backward(self, x1, x2, eps):
         ########## Code starts here ##########
-        
+        dist = path_length(self.reverse_heading(x2), self.reverse_heading(x1), self.turning_radius)
+        if dist < eps:
+            return x1
+        else:
+            return self.reverse_heading(path_sample(self.reverse_heading(x2), self.reverse_heading(x1), 1.001*self.turning_radius, eps)[0][1])
         ########## Code ends here ##########
 
     def is_free_motion(self, obstacles, x1, x2, resolution = np.pi/6):

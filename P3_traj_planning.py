@@ -31,8 +31,6 @@ class SwitchingController(object):
             return self.traj_controller.compute_control(x,y,th,t)
         else:
             return self.pose_controller.compute_control(x,y,th,t)
-        # return self.pose_controller.compute_control(x,y,th,t)
-        # return self.traj_controller.compute_control(x,y,th,t)
         ########## Code ends here ##########
 
 def compute_smoothed_traj(path, V_des, alpha, dt):
