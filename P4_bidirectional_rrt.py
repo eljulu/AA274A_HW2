@@ -132,21 +132,35 @@ class RRTConnect(object):
         # Hint: Use your implementation of RRT as a reference
 
         ########## Code starts here ##########
+        V_fw[0,:] = self.x_init
+        V_bw[0,:] = self.x_goal
 
-        def reconstruct_path(self):
-            print("here is the reconstruct path function...")
-
+        def reconstruct_path():
+            self.path = [x_new]
+            # forward:
+            current = self.path[-1]
+            while np.array((current != self.x_init)).all():
+                currentIter = np.argmin(np.linalg.norm(V_fw[range(n_fw), :] - current, axis=1))
+                parentIter = P_fw[currentIter]
+                self.path.append(V_fw[parentIter,:])
+                current = self.path[-1]
+            self.path = list(reversed(self.path))
+            # backward:
+            current = self.path[-1]
+            while np.array((current != self.x_goal)).all():
+                currentIter = np.argmin(np.linalg.norm(V_bw[range(n_bw), :] - current, axis=1))
+                parentIter = P_bw[currentIter]
+                self.path.append(V_bw[parentIter, :])
+                current = self.path[-1]
+            self.path = list(self.path)
 
         for k in range(max_iters):
-            if success:
-                print("Solution found, constructing path...")
-                break
-
             x_rand = np.zeros((state_dim,))
             for i in range(state_dim):
                 x_rand[i] = np.random.uniform(self.statespace_lo[i], self.statespace_hi[i])
             x_near = V_fw[self.find_nearest_forward(V_fw[range(n_fw), :], x_rand), :]
             x_new = self.steer_towards_forward(x_near, x_rand, eps)
+            assert np.shape(x_new) == (state_dim,)
             if self.is_free_motion(self.obstacles, x_near, x_new):
                 n_fw = n_fw + 1
                 V_fw[n_fw - 1,:] = x_new
@@ -154,18 +168,19 @@ class RRTConnect(object):
                 x_connect = V_bw[self.find_nearest_backward(V_bw[range(n_bw), :], x_new), :]
                 while True:
                     x_newconnect = self.steer_towards_backward(x_new, x_connect, eps)
+                    assert np.shape(x_newconnect) == (state_dim,)
                     if self.is_free_motion(self.obstacles,x_newconnect,x_connect):
                         n_bw = n_bw + 1
                         V_bw[n_bw-1,:] = x_newconnect
                         P_bw[n_bw-1] = np.argmin(np.linalg.norm(V_bw[range(n_bw), :] - x_connect, axis=1))
-                        if (x_new == x_newconnect).all():
+                        if (np.array(x_new==x_newconnect)).all():
                             success = True
-                            print("Solution found, constructing path...")
-                            reconstruct_path(self)
-                            return 0
+                            reconstruct_path()
+                            break
                         x_connect = x_newconnect
                     else:
                         break
+            if success: break
             x_rand = np.zeros((state_dim,))
             for i in range(state_dim):
                 x_rand[i] = np.random.uniform(self.statespace_lo[i], self.statespace_hi[i])
@@ -182,16 +197,14 @@ class RRTConnect(object):
                         n_fw = n_fw + 1
                         V_fw[n_fw - 1, :] = x_newconnect
                         P_fw[n_fw - 1] = np.argmin(np.linalg.norm(V_fw[range(n_fw), :] - x_connect, axis=1))
-                        if (x_new == x_newconnect).all():
+                        if (np.array(x_new == x_newconnect)).all():
                             success = True
-                            print("Solution found, constructing path...")
-                            reconstruct_path(self)
-                            return 0
+                            reconstruct_path()
+                            break
                         x_connect = x_newconnect
                     else:
                         break
-
-
+            if success: break
         ########## Code ends here ##########
 
         plt.figure()
@@ -203,10 +216,9 @@ class RRTConnect(object):
             self.plot_path(color="green", linewidth=2, label="solution path")
             plt.scatter(V_fw[:n_fw,0], V_fw[:n_fw,1], color="blue")
             plt.scatter(V_bw[:n_bw,0], V_bw[:n_bw,1], color="purple")
-        plt.scatter(V_fw[:n_fw,0], V_fw[:n_fw,1], color="blue")
-        plt.scatter(V_bw[:n_bw,0], V_bw[:n_bw,1], color="purple")
-
+            plt.legend(loc='upper center', bbox_to_anchor=(0.5, -0.03), fancybox=True, ncol=3)
         plt.show()
+        return success
 
     def plot_problem(self):
         plot_line_segments(self.obstacles, color="red", linewidth=2, label="obstacles")

@@ -104,18 +104,17 @@ class RRT(object):
         #     are meaningful! keep this in mind when using the helper functions!
 
         ########## Code starts here ##########
-        for k in range(max_iters):
-            if success:
-                # print("constructing path...")
-                self.path = [self.x_goal]
+        def reconstruct_path():
+            self.path = [self.x_goal]
+            current = self.path[-1]
+            while (current != self.x_init).all():
+                currentIter = np.argmin(np.linalg.norm(V[range(n), :] - current, axis=1))
+                parentIter = P[currentIter]
+                self.path.append(V[parentIter, :])
                 current = self.path[-1]
-                while (current != self.x_init).all():
-                    currentIter = np.argmin(np.linalg.norm(V[range(n), :] - current, axis=1))
-                    parentIter = P[currentIter]
-                    self.path.append(V[parentIter, :])
-                    current = self.path[-1]
-                self.path = list(reversed(self.path))
-                break
+            self.path = list(reversed(self.path))
+
+        for k in range(max_iters):
             z = np.random.uniform()
             if z < goal_bias:
                 x_rand = self.x_goal
@@ -131,7 +130,9 @@ class RRT(object):
                 P[n-1] = np.argmin(np.linalg.norm(V[range(n),:]-x_near, axis=1))
                 if (x_new == self.x_goal).all():
                     success = True
-                    # print("Found solution")
+                    reconstruct_path()
+            if success:
+                break
         ########## Code ends here ##########
 
         plt.figure()
